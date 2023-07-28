@@ -1,5 +1,5 @@
 {
-  "name": "flex-list",
+  "name": "@everbit-software/flex-list",
   "version": "1.0.0",
   "description": "Create lists, tables and anything else relating to remote data with ease!",
   "main": "list.js",
@@ -15,5 +15,6 @@
   "bugs": {
     "url": "https://github.com/everbit-software/flex-list/issues"
   },
+  "type": "module",
   "homepage": "https://github.com/everbit-software/flex-list#readme"
 }
