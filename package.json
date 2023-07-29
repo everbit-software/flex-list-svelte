@@ -2,11 +2,12 @@
   "name": "@everbit-software/flex-list",
   "version": "1.0.3",
   "description": "Create lists, tables and anything else relating to remote data with ease!",
-  "main": "list.js",
+  "main": "dist/flex-list.js",
   "scripts": {
     "build": "tsc"
   },
   "keywords": [
+    "flex-list",
     "list",
     "table",
     "sort",
