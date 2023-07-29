@@ -1,20 +1,30 @@
 {
   "name": "@everbit-software/flex-list",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Create lists, tables and anything else relating to remote data with ease!",
   "main": "list.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc"
   },
+  "keywords": [
+    "list",
+    "table",
+    "sort",
+    "typescript",
+    "searching"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/everbit-software/flex-list.git"
   },
-  "author": "Harry Harrison",
+  "author": {
+    "name": "Harry Harrison",
+    "email": "harryh@everbit.dev",
+    "url": "https://everbit.dev"
+  },
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/everbit-software/flex-list/issues"
   },
-  "type": "module",
   "homepage": "https://github.com/everbit-software/flex-list#readme"
 }
