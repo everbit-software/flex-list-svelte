@@ -12,10 +12,10 @@ export interface ListConfig {
     itemCallbacks: ItemCallbacks;
 }
 export interface ItemCallbacks {
-    load?: (page: number, limit: number) => Promise<object[]> | false;
-    search?: (query: string, page: number, limit: number) => Promise<object[]> | false;
-    loadOne?: (id: string | number) => Promise<object> | false;
-    getLastPageNumber?: () => Promise<number> | false;
+    load?: (page: number, limit: number) => Promise<object[] | false>;
+    search?: (query: string, page: number, limit: number) => Promise<object[] | false>;
+    loadOne?: (id: string | number) => Promise<object | false>;
+    getLastPageNumber?: () => Promise<number | false>;
 }
 export interface Pagination {
     perPage: number;

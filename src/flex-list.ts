@@ -16,10 +16,17 @@ export interface ListConfig {
 }
 
 export interface ItemCallbacks {
-    load?: (page: number, limit: number) => Promise<object[]> | false;          // On page load
-    search?: (query: string, page: number, limit: number) => Promise<object[]> | false; // On search
-    loadOne?: (id: string | number) => Promise<object> | false;                  // Load one item
-    getLastPageNumber?: () => Promise<number> | false;          // Get the last page number (for pagination)
+    // On page load
+    load?: (page: number, limit: number) => Promise<object[] | false>;
+
+    // On search
+    search?: (query: string, page: number, limit: number) => Promise<object[] | false>;
+
+    // Load one item
+    loadOne?: (id: string | number) => Promise<object | false>;
+
+    // Get the last page number (for pagination)
+    getLastPageNumber?: () => Promise<number | false>;
 }
 
 export interface Pagination {
