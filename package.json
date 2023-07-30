@@ -1,6 +1,6 @@
 {
   "name": "@everbit-software/flex-list",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Create lists, tables and anything else relating to remote data with ease!",
   "main": "./dist/flex-list.js",
   "types": "./dist/flex-list.d.ts",
@@ -33,7 +33,8 @@
     "typescript": "^5.1.6"
   },
   "files": [
-    "dist",
-    "src"
+    "dist/",
+    "src/",
+    "tsconfig.json"
   ]
 }
