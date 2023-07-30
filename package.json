@@ -1,8 +1,9 @@
 {
   "name": "@everbit-software/flex-list",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Create lists, tables and anything else relating to remote data with ease!",
-  "main": "dist/flex-list.js",
+  "main": "./dist/flex-list.js",
+  "types": "./dist/flex-list.d.ts",
   "scripts": {
     "build": "tsc"
   },
@@ -27,5 +28,11 @@
   "bugs": {
     "url": "https://github.com/everbit-software/flex-list/issues"
   },
-  "homepage": "https://github.com/everbit-software/flex-list#readme"
+  "homepage": "https://github.com/everbit-software/flex-list#readme",
+  "devDependencies": {
+    "typescript": "^5.1.6"
+  },
+  "files": [
+    "dist"
+  ]
 }

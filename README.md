@@ -1,5 +1,7 @@
 # Flex Lists
 
+Create lists with remote data easily with options for pagination, searching and customising rendering.
+
 ## To Do
 - [x] Enable/disable search
 - [x] Custom renderers: Render the list to your needs with custom renderers, as well as built in ones like the `TableRenderer`
