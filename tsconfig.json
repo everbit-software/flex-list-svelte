@@ -1,8 +1,8 @@
 {
     "compilerOptions": {
         "target": "ESNext",
-        "outDir": "./dist/",
-        "rootDir": "./src",
+        "outDir": "dist",
+        "rootDir": "src",
         "declaration": true,
         "sourceMap": true,
         "esModuleInterop": true,
@@ -11,6 +11,6 @@
         "moduleResolution": "node"
     },
     "include": [
-        "./src/**/*.ts"
+        "**/*"
     ],
 }
