@@ -8,6 +8,7 @@ interface TableColumn {
     label: string;
     key: string;
     isVisible?: boolean;
+    displayCallback?: (value: any) => string;
 }
 interface TableStyle extends ListStyle {
     tableContainer: string[];

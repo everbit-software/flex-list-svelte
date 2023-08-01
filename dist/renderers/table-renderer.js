@@ -74,7 +74,11 @@ export class TableRenderer extends AbstractRenderer {
             if (this.style.td !== undefined) {
                 td.classList.add(...this.style.td);
             }
-            td.innerText = item.data[column.key];
+            let columnValue = item.data[column.key];
+            if (column.displayCallback !== undefined) {
+                columnValue = column.displayCallback(columnValue);
+            }
+            td.innerText = columnValue;
             td.dataset.columnKey = column.key;
             if (!column.isVisible) {
                 td.style.display = 'none';
