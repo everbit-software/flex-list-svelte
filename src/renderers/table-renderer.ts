@@ -10,6 +10,7 @@ interface TableColumn {
     label: string;
     key: string;
     isVisible?: boolean;
+    displayCallback?: (value: any) => string
 }
 
 interface TableStyle extends ListStyle {
@@ -121,7 +122,13 @@ export class TableRenderer extends AbstractRenderer {
                 td.classList.add(...this.style.td)
             }
 
-            td.innerText = item.data[column.key];
+            let columnValue = item.data[column.key];
+
+            if (column.displayCallback !== undefined) {
+                columnValue = column.displayCallback(columnValue);
+            }
+
+            td.innerText = columnValue;
             td.dataset.columnKey = column.key;
 
             if (!column.isVisible) {
