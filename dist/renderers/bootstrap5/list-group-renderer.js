@@ -11,7 +11,7 @@ export class ListGroupRenderer extends AbstractRenderer {
     setup() {
         // Items container
         this.itemsContainer = document.createElement('div');
-        this.itemsContainer.classList.add('list-group', 'list-group-lg', 'list-group-flush', 'list', 'my-n4');
+        this.itemsContainer.classList.add('list-group', 'list-group-lg', 'list-group-flush');
         // Add table to the container
         this.containerElement.innerHTML = '';
         this.containerElement.append(this.itemsContainer);
