@@ -19,7 +19,7 @@ interface TableStyle extends ListStyle {
 }
 export declare const BootstrapFiveStyle: TableStyle;
 export declare class TableRenderer extends AbstractRenderer {
-    protected style: TableStyle;
+    style: TableStyle;
     private columns;
     private rowsContainer;
     constructor(config: TableRendererConfig);

@@ -31,7 +31,7 @@ export const BootstrapFiveStyle: TableStyle = {
 
 export class TableRenderer extends AbstractRenderer {
     // Inherited
-    declare protected style: TableStyle;
+    declare public style: TableStyle;
 
     // Table renderer
     private columns: TableColumn[] = [];

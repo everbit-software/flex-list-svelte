@@ -5,7 +5,14 @@ export interface RendererConfig {
     paginationElements?: PaginationElements;
     loaderHtml?: string;
 }
+export interface PaginationStyle {
+    pageClasses?: string[];
+    pageSelectedClasses?: string[];
+    pageDeselectedClasses?: string[];
+    pagesContainerClasses?: string[];
+}
 export interface ListStyle {
+    paginationStyle?: PaginationStyle;
 }
 export interface PaginationElements {
     prevButton: HTMLButtonElement;
@@ -18,7 +25,7 @@ export declare abstract class AbstractRenderer {
     paginationElements?: PaginationElements;
     searchElement?: HTMLInputElement;
     protected loaderHtml: string;
-    protected style: ListStyle;
+    style: ListStyle;
     protected constructor(config: RendererConfig);
     /**
      * Create the DOM structure

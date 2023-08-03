@@ -7,8 +7,15 @@ export interface RendererConfig {
     loaderHtml?: string;
 }
 
-export interface ListStyle {
+export interface PaginationStyle {
+    pageClasses?: string[];
+    pageSelectedClasses?: string[];
+    pageDeselectedClasses?: string[];
+    pagesContainerClasses?: string[];
+}
 
+export interface ListStyle {
+    paginationStyle?: PaginationStyle;
 }
 
 export interface PaginationElements {
@@ -24,7 +31,7 @@ export abstract class AbstractRenderer {
     // Spinner element
     protected spinnerElement?: HTMLElement;
 
-    // Elements for pagination
+    // Pagination
     public paginationElements?: PaginationElements;
 
     // Element for search
@@ -34,7 +41,14 @@ export abstract class AbstractRenderer {
     // By default this is just 'Loading...'
     protected loaderHtml = 'Loading...';
 
-    protected style: ListStyle;
+    public style: ListStyle = {
+        paginationStyle: {
+            pageClasses: ['btn'],
+            pageSelectedClasses: ['btn-secondary'],
+            pageDeselectedClasses: ['btn-secondary-outline'],
+            pagesContainerClasses: ['input-group']
+        }
+    };
 
     protected constructor(config: RendererConfig) {
         this.containerElement = config.containerElement;

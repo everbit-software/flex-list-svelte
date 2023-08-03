@@ -532,6 +532,10 @@ class FlexList {
                 inBetweenPages.push(p);
             }
         }
+        
+        const paginationStyle = this.renderer.style.paginationStyle;
+
+        console.log(paginationStyle)
 
         let appendPage = (page: number | null, content: string | null = null, isDisabled = false, isActive: boolean | null = null) => {
             // Placeholder page
@@ -547,7 +551,8 @@ class FlexList {
             // Button
             let button = document.createElement('button');
             button.type = 'button';
-            button.classList.add('btn', `btn${isActive ? '' : '-outline'}-secondary`);
+            console.log(...paginationStyle.pageClasses, ...(isActive ? paginationStyle.pageSelectedClasses : paginationStyle.pageDeselectedClasses))
+            button.classList.add(...paginationStyle.pageClasses, ...(isActive ? paginationStyle.pageSelectedClasses : paginationStyle.pageDeselectedClasses));
             button.disabled = isDisabled;
             button.innerHTML = content ?? '';
 
@@ -559,6 +564,7 @@ class FlexList {
         }
 
         pagesContainer.innerHTML = '';
+        pagesContainer.className = paginationStyle.pagesContainerClasses.join(' ');
 
         if (!showPagination) {
             return;
