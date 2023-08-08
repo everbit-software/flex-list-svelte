@@ -620,6 +620,34 @@ class FlexList {
         this.events[eventName].push(callback);
     }
 
+    private async initPagination() {
+        // Get the last page number
+        if (this.itemCallbacks.getLastPageNumber !== undefined) {
+            const lastPage = await this.itemCallbacks.getLastPageNumber();
+
+            if (lastPage !== false) {
+                this.pagination.max = lastPage;
+            }
+        }
+
+        /*
+         * Setup pagination
+         */
+
+        // Change page
+        if (this.renderer.paginationElements?.prevButton) {
+            this.renderer.paginationElements.prevButton.onclick = () => this.previous();
+        }
+
+        if (this.renderer.paginationElements?.nextButton) {
+            this.renderer.paginationElements.nextButton.onclick = () => this.next();
+        }
+    }
+
+    public setLastPage(lastPage: number) {
+        this.pagination.max = lastPage;
+    }
+
     private async init() {
         // Get query parameters
         this.url = new URL(window.location.href)
@@ -659,15 +687,6 @@ class FlexList {
             });
         }
 
-        // Get the last page number
-        if (this.itemCallbacks.getLastPageNumber !== undefined) {
-            const lastPage = await this.itemCallbacks.getLastPageNumber();
-
-            if (lastPage !== false) {
-                this.pagination.max = lastPage;
-            }
-        }
-
         // Render init items
         this.changePage(this.pagination.current).then(async () => {
             this.renderer.toggleSpinner(false);
@@ -678,18 +697,7 @@ class FlexList {
             }
         });
 
-        /*
-         * Setup pagination
-         */
-
-        // Change page
-        if (this.renderer.paginationElements?.prevButton) {
-            this.renderer.paginationElements.prevButton.onclick = () => this.previous();
-        }
-
-        if (this.renderer.paginationElements?.nextButton) {
-            this.renderer.paginationElements.nextButton.onclick = () => this.next();
-        }
+        await this.initPagination();
 
         this.triggerEvent('initialised');
     }
