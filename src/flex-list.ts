@@ -1,14 +1,12 @@
+import { get, writable } from "svelte/store";
 import { ListItem } from "./list-item";
-import { AbstractRenderer } from "./renderers/abstract-renderer";
-import { Search } from "./search";
+import type { Search } from "./search";
 
 export interface ListConfig {
-    renderer: AbstractRenderer;
     search?: Search;
 
     idField: string;
 
-    noItemsText?: string;
     sortColumn?: string
     sortDirection?: string
     perPage?: number
@@ -30,6 +28,9 @@ export interface ItemCallbacks {
 }
 
 export interface Pagination {
+    // Show pagination
+    visible: boolean;
+
     // Items per page
     perPage: number;
 
@@ -44,6 +45,15 @@ export interface Pagination {
 
     // The number of pages to show either side of the current page
     activePageRange: number | null;
+
+    // The pages that can be clicked currently
+    inbetweenPages: number[];
+
+    // Show first page button
+    firstPageButtonVisible: boolean;
+
+    // Show end page button
+    lastPageButtonVisible: boolean;
 }
 
 export interface ListEvent {
@@ -51,8 +61,7 @@ export interface ListEvent {
 }
 
 class FlexList {
-    protected renderer: AbstractRenderer;
-    protected searcher?: Search;
+    public searcher?: Search;
 
     /*
      * Configuration (ID field, search config, columns, and sort)
@@ -66,9 +75,6 @@ class FlexList {
 
     // Sorting direction
     private sortDirection = 'asc';
-
-    // Text if there are no items
-    private noItemsText: string = 'No results found';
 
     /*
      * Available events
@@ -98,10 +104,22 @@ class FlexList {
     private pages: Array<string | number> = [];
 
     /*
-     * Pagination
+     * Stateful changes
      */
 
-    public pagination: Pagination = {
+    // Items currently being displayed
+    public displayedItems = writable([] as ListItem[]);
+
+    // Message to dispalay if there is an error
+    public displayedMessage = writable(null as string|null);
+
+    // Show spinner
+    public showSpinner = writable(false);
+
+    public pagination = writable({
+        // Show pagination
+        visible: true,
+
         // Items per page
         perPage: 10,
 
@@ -116,7 +134,16 @@ class FlexList {
 
         // The number of pages to show either side of the current page
         activePageRange: 1,
-    }
+
+        // Inbetween pages
+        inbetweenPages: [],
+
+        // Jump to first page button
+        firstPageButtonVisible: false,
+        
+        // Jump to last page button
+        lastPageButtonVisible: false
+    } as Pagination)
 
     // Whether there is an error or not
     private errorOccured = false;
@@ -128,15 +155,13 @@ class FlexList {
         this.idField = config.idField;
         this.sortColumn = config.sortColumn ?? null;
         this.sortDirection = (config.sortDirection ?? 'asc').toLowerCase();
-        this.renderer = config.renderer;
         this.searcher = config.search;
 
-        if (config.noItemsText) {
-            this.noItemsText = config.noItemsText;
-        }
-
         // Pagination
-        this.pagination.perPage = config.perPage ?? 10;
+        this.pagination.update((p) => {
+            p.perPage = config.perPage ?? 10
+            return p;
+        });
 
         this.itemCallbacks = config.itemCallbacks;
 
@@ -166,24 +191,11 @@ class FlexList {
      * The items currently being displayed on the page
      */
     public getCurrentItems(): ListItem[] {
-        if (this.searcher?.query) {
+        if (this.searcher && get(this.searcher.query)) {
             return this.currentSearchItems ?? [];
         } else {
-            return this.items.filter((item: ListItem) => item.isDisplayed());
+            return get(this.displayedItems);
         }
-    }
-
-    /**
-     * Clear the items being displayed
-     */
-    public clearCurrentItems() {
-        let items = this.getCurrentItems();
-
-        for (let item of items) {
-            item.element = null;
-        }
-
-        this.renderer.clearItems();
     }
 
     private async pullPageItems(page: number, refreshIfExists: boolean = false) {
@@ -193,15 +205,18 @@ class FlexList {
                 this.pages.push(page);
             }
 
-            let itemsObjects = await this.itemCallbacks.load(page, this.pagination.perPage);
+            let itemsObjects = await this.itemCallbacks.load(page, get(this.pagination).perPage);
 
             if (itemsObjects === false) {
-                this.renderer.displayMessage('Data was unable to be retrieved, reload the page to try again.', true);
+                this.displayedMessage.set('Data was unable to be retrieved, reload the page to try again.');
                 return;
             }
 
-            if (itemsObjects.length < this.pagination.perPage) {
-                this.pagination.max = page;
+            if (itemsObjects.length < get(this.pagination).perPage) {
+                this.pagination.update((p) => {
+                    p.max = page;
+                    return p;
+                });
             }
 
             for (let itemData of itemsObjects) {
@@ -236,10 +251,10 @@ class FlexList {
      */
     private async getcurrentSearchItems(query: string, page: number): Promise<ListItem[]> {
         // Search by remote values
-        let itemObjects = await this.itemCallbacks.search(query, this.pagination.current, this.pagination.perPage);
+        let itemObjects = await this.itemCallbacks.search(query, get(this.pagination).current, get(this.pagination).perPage);
 
         if (itemObjects === false) {
-            this.renderer.displayMessage('Your search returned an error, please try again', true);
+            this.displayedMessage.set('Your search returned an error, please try again');
             return [];
         }
 
@@ -253,60 +268,6 @@ class FlexList {
     }
 
     /**
-     *
-     * @param items
-     * @param append Whether to add to existing or overwrite
-     * @private
-     */
-    private renderItems(items: ListItem[], append = false) {
-        if (!append) {
-            this.clearCurrentItems();
-        }
-
-        for (let item of items) {
-            if (!append && item.isDisplayed()) {
-                continue;
-            }
-
-            item.element = this.renderer.createItemElement(item);
-            this.renderer.addItemToContainer(item);
-        }
-
-        this.triggerEvent('itemsRendered', {
-            items: items
-        });
-    }
-
-    /**
-     * Refresh an item element by item ID or item object
-     *
-     * @param item
-     * @returns {Promise<void>}
-     */
-    public async refreshItem(item: ListItem | string | number) {
-        if (!this.itemCallbacks.loadOne) {
-            return;
-        }
-
-        item = item instanceof ListItem ? item : this.getItem(item);
-
-        await this.renderer.showItemSpinner(item);
-
-        // Pull the row
-        item.data = await this.itemCallbacks.loadOne(item.id) as object;
-
-        // Replace the displayed item
-        let newElement = this.renderer.createItemElement(item);
-
-        item.element.replaceWith(newElement);
-        item.element = newElement;
-
-        this.triggerEvent('itemRefreshed', {
-            item: item
-        });
-    }
-
-    /**
      * Change the page from a page number (this includes search queries)
      *
      * @param page
@@ -314,34 +275,37 @@ class FlexList {
      */
     public async changePage(page: number, showSpinner: boolean = true) {
         // Update the page to be in the correct bounds
-        if (this.pagination.max && page > this.pagination.max) {
-            page = this.pagination.max;
-        } else if (page < this.pagination.min) {
-            page = this.pagination.min;
+        if (get(this.pagination).max && page > get(this.pagination).max) {
+            page = get(this.pagination).max;
+        } else if (page < get(this.pagination).min) {
+            page = get(this.pagination).min;
         }
 
         // Get the page change type
         let pageChange = 'refresh-only';
 
-        if (this.pagination.current < page) {
+        if (get(this.pagination).current < page) {
             pageChange = 'next'
-        } else if (this.pagination.current > page) {
+        } else if (get(this.pagination).current > page) {
             pageChange = 'prev';
         }
 
         // Show spinner
         if (showSpinner) {
-            this.renderer.toggleSpinner(true);
+            this.showSpinner.set(true);
         }
 
         // Get previous page
-        let previousPage = this.pagination.current;
-        this.pagination.current = page;
+        let previousPage = get(this.pagination).current;
+        this.pagination.update((p) => {
+            p.current = page;
+            return p;
+        });
 
         let pageItems: ListItem[];
 
-        if (this.searcher?.query) {
-            pageItems = await this.getcurrentSearchItems(this.searcher.query, page);
+        if (this.searcher && get(this.searcher.query)) {
+            pageItems = await this.getcurrentSearchItems(get(this.searcher.query), page);
             this.currentSearchItems = pageItems;
         } else {
             pageItems = await this.getPageItems(page);
@@ -354,9 +318,12 @@ class FlexList {
         }
 
         // If no items, go to previous page (if it's not the same page as that would an infinite loop)
-        if (pageItems.length === 0 && previousPage !== page && this.pagination.current !== 1) {
+        if (pageItems.length === 0 && previousPage !== page && get(this.pagination).current !== 1) {
             if (pageChange === 'next') {
-                this.pagination.max = previousPage;
+                this.pagination.update((p) => {
+                    p.max = previousPage;
+                    return p;
+                });
             }
 
             this.changePage(previousPage).then();
@@ -377,29 +344,27 @@ class FlexList {
         this.setQueryParam('page', page.toString());
 
         if (showSpinner) {
-            this.renderer.toggleSpinner(false);
+            this.showSpinner.set(false);
         }
 
         if (pageItems.length === 0) {
-            if (this.searcher?.query) {
-                this.renderer.displayMessage(`No results found for <span class="badge bg-light">${this.searcher.query}</span>`, false);
+            if (this.searcher && get(this.searcher.query)) {
+                this.displayedMessage.set(`No results found for <span class="badge bg-light ms-1">${get(this.searcher.query)}</span>`);
             } else {
-                this.renderer.displayMessage(this.noItemsText, false);
+                this.displayedMessage.set(this.noItemsText);
             }
-        } else {
-            this.renderItems(pageItems);
         }
+
+        this.displayedItems.set(pageItems);
 
         // this.renderer.scrollIntoView();
 
-        if (this.renderer.paginationElements?.pagesContainer) {
-            this.updatePagination();
-        }
+        this.updatePagination();
 
-        this.triggerEvent(this.searcher?.query ? 'search' : 'pageChanged', {
+        this.triggerEvent(this.searcher && get(this.searcher.query) ? 'search' : 'pageChanged', {
             page: page,
             pageItems: pageItems,
-            query: this.searcher?.query,
+            query: this.searcher === null ? null : get(this.searcher.query),
             changeType: pageChange
         });
     }
@@ -409,44 +374,52 @@ class FlexList {
             return;
         }
 
-        this.renderer.toggleSpinner(false);
-        this.searcher.inputElement.value = '';
+        this.showSpinner.set(false);
         this.deleteQueryParam(this.searcher.queryParam);
-        this.searcher.query = null;
+        this.searcher.query.set(null);
 
         await this.changePage(1);
     }
 
     public async search(query: string) {
-        if (!this.searcher || this.searcher.query === query) {
-            this.renderer.toggleSpinner(false);
+        if (!this.searcher || get(this.searcher.query) === query) {
+            this.showSpinner.set(false);
             return;
         }
 
-        this.pagination.current = 1;
-        this.searcher.query = query;
+        this.pagination.update((p) => {
+            p.current = 1;
+            return p;
+        });
+
+        this.searcher.query.set(query);
 
         if (!query) {
             await this.clearSearch();
             return;
         }
 
-        this.searcher.inputElement.value = query;
         this.setQueryParam(this.searcher.queryParam, query);
 
-        await this.changePage(this.pagination.current, false);
+        await this.changePage(get(this.pagination).current, false);
 
-        this.renderer.toggleSpinner(false);
+        this.showSpinner.set(false);
+    }
+
+    public bindSearch(value: string|null) {
+        this.showSpinner.set(true);
+
+        clearTimeout(this.searcher.searchTimer);
+        this.searcher.searchTimer = setTimeout(() => this.searcher && this.search(value), this.searcher?.searchDelay);
     }
 
     /**
      * Deletes all remotes data and retrieves the current page
      */
     public async clearData() {
-        this.clearCurrentItems();
         this.items = [];
         this.pages = [];
-        await this.changePage(this.pagination.current);
+        await this.changePage(get(this.pagination).current);
     }
 
     private updateUrl() {
@@ -474,120 +447,69 @@ class FlexList {
     }
 
     public previous() {
-        let newPage = this.pagination.current - 1;
+        let newPage = get(this.pagination).current - 1;
 
-        if (newPage < this.pagination.min) {
-            newPage = this.pagination.min;
+        if (newPage < get(this.pagination).min) {
+            newPage = get(this.pagination).min;
         }
 
         this.changePage(newPage).then();
     };
 
     public next() {
-        let newPage = this.pagination.current + 1;
+        let newPage = get(this.pagination).current + 1;
 
-        if (this.pagination.max !== null && newPage > this.pagination.max) {
-            newPage = this.pagination.max;
+        if (get(this.pagination).max !== null && newPage > get(this.pagination).max) {
+            newPage = get(this.pagination).max;
         }
 
         this.changePage(newPage).then();
     };
 
     private updatePagination() {
-        if (!this.renderer.paginationElements) {
-            return;
-        }
-
-        let pagesContainer = this.renderer.paginationElements.pagesContainer;
-        let selectedPage = this.pagination.current;
-
         let inBetweenPages: number[] = [];
         let showPagination = true;
 
+        const { min, max, activePageRange, current } = get(this.pagination);
+
         if (this.getCurrentItems().length === 0) {
             showPagination = false;
-        } else if (this.pagination.min && this.pagination.max && Math.abs(this.pagination.max - this.pagination.min) <= 5) {
+        } else if (min && max && Math.abs(max - min) <= 5) {
             // If there are less than 5 pages
-            for (let p = this.pagination.min; p <= this.pagination.max; p++) {
+            for (let p = min; p <= max; p++) {
                 inBetweenPages.push(p);
             }
-        } else if (this.pagination.min && this.pagination.current <= this.pagination.min + this.pagination.activePageRange) {
+        } else if (min && current <= min + activePageRange) {
             // First few pages
-            for (let p = this.pagination.min; p <= this.pagination.min + (this.pagination.activePageRange * 2); p++) {
+            for (let p = min; p <= min + (activePageRange * 2); p++) {
                 inBetweenPages.push(p);
             }
-        } else if (this.pagination.max && this.pagination.current >= this.pagination.max - this.pagination.activePageRange) {
+        } else if (max && current >= max - activePageRange) {
             // Last few pages
-            for (let p = this.pagination.max - (this.pagination.activePageRange * 2); p <= this.pagination.max; p++) {
+            for (let p = max - (activePageRange * 2); p <= max; p++) {
                 inBetweenPages.push(p);
             }
-        } else if (this.pagination.min && this.pagination.max) {
+        } else if (min && max) {
             // Middle pages (if known max)
-            for (let p = selectedPage - this.pagination.activePageRange; p <= selectedPage + this.pagination.activePageRange && this.pagination.min <= p && p <= this.pagination.max; p++) {
+            for (let p = current - activePageRange; p <= current + activePageRange && min <= p && p <= max; p++) {
                 inBetweenPages.push(p);
             }
         } else {
             // Middle pages (if max is not known)
-            for (let p = selectedPage - this.pagination.activePageRange; p <= selectedPage + this.pagination.activePageRange && this.pagination.min <= p; p++) {
+            for (let p = current - activePageRange; p <= current + activePageRange && min <= p; p++) {
                 inBetweenPages.push(p);
             }
         }
-        
-        const paginationStyle = this.renderer.style.paginationStyle;
 
-        console.log(paginationStyle)
+        // Update pagination
+        this.pagination.update((p) => {
+            p.visible = showPagination;
+            p.inbetweenPages = inBetweenPages;
+            p.lastPageButtonVisible = showPagination && min && !inBetweenPages.includes(min);
+            p.firstPageButtonVisible = showPagination && max && !inBetweenPages.includes(max);
 
-        let appendPage = (page: number | null, content: string | null = null, isDisabled = false, isActive: boolean | null = null) => {
-            // Placeholder page
-            if (page === null) {
-                isDisabled = true;
-                isActive = false;
-                content = '...';
-            } else {
-                isActive = isActive ?? (!isDisabled && selectedPage == page);
-                content = page.toString();
-            }
-
-            // Button
-            let button = document.createElement('button');
-            button.type = 'button';
-            console.log(...paginationStyle.pageClasses, ...(isActive ? paginationStyle.pageSelectedClasses : paginationStyle.pageDeselectedClasses))
-            button.classList.add(...paginationStyle.pageClasses, ...(isActive ? paginationStyle.pageSelectedClasses : paginationStyle.pageDeselectedClasses));
-            button.disabled = isDisabled;
-            button.innerHTML = content ?? '';
-
-            pagesContainer.append(button);
-
-            if (!isDisabled && page) {
-                button.onclick = () => this.changePage(page);
-            }
-        }
-
-        pagesContainer.innerHTML = '';
-        pagesContainer.className = paginationStyle.pagesContainerClasses.join(' ');
-
-        if (!showPagination) {
-            return;
-        }
-
-        if (this.pagination.min && !inBetweenPages.includes(this.pagination.min)) {
-            appendPage(this.pagination.min);
-            appendPage(null); // Add placeholder
-        }
-
-        for (let p of inBetweenPages) {
-            appendPage(p);
-        }
-
-        if (this.pagination.max && !inBetweenPages.includes(this.pagination.max)) {
-            appendPage(null); // Add placeholder
-            appendPage(this.pagination.max);
-        }
-    }
-
-    public changeRenderer(renderer: AbstractRenderer) {
-        this.renderer = renderer;
-        this.init();
+            return p;
+        });
     }
 
     /**
@@ -626,74 +548,56 @@ class FlexList {
             const lastPage = await this.itemCallbacks.getLastPageNumber();
 
             if (lastPage !== false) {
-                this.pagination.max = lastPage;
+                this.pagination.update(p => {
+                    p.max = lastPage;
+                    return p;
+                })
             }
-        }
-
-        /*
-         * Setup pagination
-         */
-
-        // Change page
-        if (this.renderer.paginationElements?.prevButton) {
-            this.renderer.paginationElements.prevButton.onclick = () => this.previous();
-        }
-
-        if (this.renderer.paginationElements?.nextButton) {
-            this.renderer.paginationElements.nextButton.onclick = () => this.next();
         }
     }
 
     public setLastPage(lastPage: number) {
-        this.pagination.max = lastPage;
+        this.pagination.update(p => {
+            p.max = lastPage;
+            return p;
+        })
     }
 
     private async init() {
         // Get query parameters
         this.url = new URL(window.location.href)
 
-        this.renderer.setup();
-
         // Add spinner
-        this.renderer.setupSpinner();
-        this.renderer.toggleSpinner(true);
+        this.showSpinner.set(true);
 
         // Get current page
         if (this.hasQueryParam('page')) {
-            this.pagination.current = parseInt(this.getQueryParam('page'));
+            this.pagination.update(p => {
+                p.current = parseInt(this.getQueryParam('page'));
+                return p;
+            })
         }
 
         // Get the per page limit
         if (this.hasQueryParam('limit')) {
-            this.pagination.perPage = parseInt(this.getQueryParam('limit'));
+            this.pagination.update(p => {
+                p.perPage = parseInt(this.getQueryParam('limit'));
+                return p;
+            })
         }
 
         // Search
         if (this.searcher && this.searcher.fields.length > 0) {
-            let searchTimer;
-
-            this.searcher.query = this.getQueryParam(this.searcher.queryParam);
-
-            if (this.searcher.query) {
-                this.searcher.inputElement.value = this.searcher.query;
-            }
-
-            // Search change event listener
-            this.searcher?.inputElement.addEventListener('input', () => {
-                this.renderer.toggleSpinner(true);
-
-                clearTimeout(searchTimer);
-                searchTimer = setTimeout(() => this.searcher && this.search(this.searcher.inputElement.value), this.searcher?.searchDelay);
-            });
+            this.searcher.query.set(this.getQueryParam(this.searcher.queryParam));
         }
 
         // Render init items
-        this.changePage(this.pagination.current).then(async () => {
-            this.renderer.toggleSpinner(false);
+        this.changePage(get(this.pagination).current).then(async () => {
+            this.showSpinner.set(false);
 
             // If no items, change to the first page
             if (this.getCurrentItems().length === 0) {
-                await this.changePage(this.pagination.min);
+                await this.changePage(get(this.pagination).min);
             }
         });
 
