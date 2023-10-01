@@ -205,7 +205,9 @@ class FlexList {
                 this.pages.push(page);
             }
 
-            let itemsObjects = await this.itemCallbacks.load(page, get(this.pagination).perPage);
+            let itemsObjects: any;
+
+            itemsObjects = await this.itemCallbacks.load(page, get(this.pagination).perPage);
 
             if (itemsObjects === false) {
                 this.displayedMessage.set('Data was unable to be retrieved, reload the page to try again.');
