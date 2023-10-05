@@ -343,8 +343,6 @@ class FlexList {
             }
         }
 
-        this.setQueryParam('page', page.toString());
-
         if (showSpinner) {
             this.showSpinner.set(false);
         }
@@ -377,7 +375,6 @@ class FlexList {
         }
 
         this.showSpinner.set(false);
-        this.deleteQueryParam(this.searcher.queryParam);
         this.searcher.query.set(null);
 
         await this.changePage(1);
@@ -400,8 +397,6 @@ class FlexList {
             await this.clearSearch();
             return;
         }
-
-        this.setQueryParam(this.searcher.queryParam, query);
 
         await this.changePage(get(this.pagination).current, false);
 
@@ -428,24 +423,6 @@ class FlexList {
         let url = this.url.toString()
 
         window.history.pushState({ path: url }, '', url);
-    }
-
-    private getQueryParam(name: string) {
-        return this.url.searchParams.get(name);
-    }
-
-    private hasQueryParam(name: string) {
-        return this.url.searchParams.has(name);
-    }
-
-    private setQueryParam(name: string, value: string) {
-        this.url.searchParams.set(name, value);
-        this.updateUrl();
-    }
-
-    private deleteQueryParam(name: string) {
-        this.url.searchParams.delete(name);
-        this.updateUrl();
     }
 
     public previous() {
@@ -507,8 +484,8 @@ class FlexList {
         this.pagination.update((p) => {
             p.visible = showPagination;
             p.inbetweenPages = inBetweenPages;
-            p.lastPageButtonVisible = showPagination && min && !inBetweenPages.includes(min);
-            p.firstPageButtonVisible = showPagination && max && !inBetweenPages.includes(max);
+            p.firstPageButtonVisible = showPagination && min && !inBetweenPages.includes(min);
+            p.lastPageButtonVisible = showPagination && max && !inBetweenPages.includes(max);
 
             return p;
         });
@@ -558,7 +535,7 @@ class FlexList {
         }
     }
 
-    public setLastPage(lastPage: number) {
+    public setLastPage(lastPage: number|null) {
         this.pagination.update(p => {
             p.max = lastPage;
             return p;
@@ -571,27 +548,6 @@ class FlexList {
 
         // Add spinner
         this.showSpinner.set(true);
-
-        // Get current page
-        if (this.hasQueryParam('page')) {
-            this.pagination.update(p => {
-                p.current = parseInt(this.getQueryParam('page'));
-                return p;
-            })
-        }
-
-        // Get the per page limit
-        if (this.hasQueryParam('limit')) {
-            this.pagination.update(p => {
-                p.perPage = parseInt(this.getQueryParam('limit'));
-                return p;
-            })
-        }
-
-        // Search
-        if (this.searcher && this.searcher.fields.length > 0) {
-            this.searcher.query.set(this.getQueryParam(this.searcher.queryParam));
-        }
 
         // Render init items
         this.changePage(get(this.pagination).current).then(async () => {
