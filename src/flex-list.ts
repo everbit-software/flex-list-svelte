@@ -276,6 +276,8 @@ class FlexList {
      * @param showSpinner
      */
     public async changePage(page: number, showSpinner: boolean = true) {
+        this.displayedMessage.set(null);
+        
         // Update the page to be in the correct bounds
         if (get(this.pagination).max && page > get(this.pagination).max) {
             page = get(this.pagination).max;
@@ -403,7 +405,7 @@ class FlexList {
         this.showSpinner.set(false);
     }
 
-    public bindSearch(value: string|null) {
+    public async bindSearch(value: string|null) {
         this.showSpinner.set(true);
 
         clearTimeout(this.searcher.searchTimer);

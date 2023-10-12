@@ -18,7 +18,7 @@ export class Search {
     public readonly queryParam: string = 'q';
 
     // The time (in milliseconds) to wait with no user input before searching
-    public readonly searchDelay: number = 200;
+    public readonly searchDelay: number = 400;
     
     /*
      * Dynamic
@@ -32,6 +32,6 @@ export class Search {
     constructor(config: SearchConfig) {
         this.fields = config.fields;
         this.queryParam = config.queryParam ?? 'q';
-        this.searchDelay = config.searchDelay ?? 200;
+        this.searchDelay = config.searchDelay ?? 400;
     }
 }
