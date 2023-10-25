@@ -366,7 +366,7 @@ class FlexList {
         this.triggerEvent(this.searcher && get(this.searcher.query) ? 'search' : 'pageChanged', {
             page: page,
             pageItems: pageItems,
-            query: this.searcher === null ? null : get(this.searcher.query),
+            query: !this.searcher ? null : get(this.searcher?.query),
             changeType: pageChange
         });
     }
