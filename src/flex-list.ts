@@ -7,8 +7,6 @@ export interface ListConfig {
 
     idField: string;
 
-    sortColumn?: string
-    sortDirection?: string
     perPage?: number
     itemCallbacks: ItemCallbacks
 }
@@ -61,20 +59,14 @@ export interface ListEvent {
 }
 
 class FlexList {
-    public searcher?: Search;
-
     /*
-     * Configuration (ID field, search config, columns, and sort)
+     * Configuration (ID field, search config, columns)
      */
 
     // How the row is identified
     private readonly idField: string;
 
-    // Sorting column
-    private sortColumn: string | null = null;
-
-    // Sorting direction
-    private sortDirection = 'asc';
+    public searcher?: Search;
 
     /*
      * Available events
@@ -90,31 +82,18 @@ class FlexList {
      */
     private itemCallbacks: ItemCallbacks = {};
 
-    /*
-     * Items
-     */
-
-    // Items (no search)
-    private items: ListItem[] = [];
-
-    // Current items in the search
-    private currentSearchItems: ListItem[] | null = null;
-
-    // The pages that have been pulled so far
-    private pages: Array<string | number> = [];
 
     /*
      * Stateful changes
      */
 
+    public state = writable('loading' as 'loading'|'message'|'results');
+
     // Items currently being displayed
-    public displayedItems = writable([] as ListItem[]);
+    public items = writable([] as ListItem[]);
 
     // Message to dispalay if there is an error
-    public displayedMessage = writable(null as string|null);
-
-    // Show spinner
-    public showSpinner = writable(false);
+    public message = writable(null as string|null);
 
     public pagination = writable({
         // Show pagination
@@ -148,13 +127,8 @@ class FlexList {
     // Whether there is an error or not
     private errorOccured = false;
 
-    // The page URL (to update the query parameters
-    private url: URL;
-
     constructor(config: ListConfig) {
         this.idField = config.idField;
-        this.sortColumn = config.sortColumn ?? null;
-        this.sortDirection = (config.sortDirection ?? 'asc').toLowerCase();
         this.searcher = config.search;
 
         // Pagination
@@ -168,80 +142,41 @@ class FlexList {
         this.init().then();
     }
 
-    public getItem(id: string | number): ListItem | undefined {
-        const matchingItems = this.items.filter((item: ListItem) => item.id === id);
-
-        return matchingItems.length > 0 ? matchingItems.at(0) : undefined;
+    private displayMessage(message: string) {
+        this.message.set(message);
+        this.state.set('message');
     }
 
-    /**
-     * Get the items on a given page
-     *
-     * @param page
-     */
-    public async getPageItems(page: number): Promise<ListItem[]> {
-        if (!this.pages.includes(page)) {
-            await this.pullPageItems(page);
+    private async getPageItems(page: number) {
+        let itemsObjects: any;
+
+        itemsObjects = await this.itemCallbacks.load(page, get(this.pagination).perPage);
+
+        if (itemsObjects === false) {
+            this.displayMessage('Data was unable to be retrieved, reload the page to try again.');
+            return;
         }
 
-        return this.items.filter((item: ListItem) => item.page === page);
-    }
-
-    /**
-     * The items currently being displayed on the page
-     */
-    public getCurrentItems(): ListItem[] {
-        if (this.searcher && get(this.searcher.query)) {
-            return this.currentSearchItems ?? [];
-        } else {
-            return get(this.displayedItems);
-        }
-    }
-
-    private async pullPageItems(page: number, refreshIfExists: boolean = false) {
-        // Pull a page, if the page hasn't been already
-        if (!this.pages.includes(page) || refreshIfExists) {
-            if (!this.pages.includes(page)) {
-                this.pages.push(page);
-            }
-
-            let itemsObjects: any;
-
-            itemsObjects = await this.itemCallbacks.load(page, get(this.pagination).perPage);
-
-            if (itemsObjects === false) {
-                this.displayedMessage.set('Data was unable to be retrieved, reload the page to try again.');
-                return;
-            }
-
-            if (itemsObjects.length < get(this.pagination).perPage) {
-                this.pagination.update((p) => {
-                    p.max = page;
-                    return p;
-                });
-            }
-
-            for (let itemData of itemsObjects) {
-                const id = itemData[this.idField];
-
-                let item = this.getItem(id);
-
-                // Just update the page if the item has already been added
-                if (item !== undefined && (item.page === null || refreshIfExists)) {
-                    // Update information
-                    item.page = page;
-                    item.data = itemData;
-                } else {
-                    item = new ListItem(itemData, id, page);
-
-                    this.items.push(item);
-                }
-            }
+        if (itemsObjects.length < get(this.pagination).perPage) {
+            this.pagination.update((p) => {
+                p.max = page;
+                return p;
+            });
         }
 
         if (this.errorOccured) {
-            return;
+            return [];
         }
+
+        let items = []
+
+        for (let itemData of itemsObjects) {
+            const id = itemData[this.idField];
+
+            items.push(new ListItem(itemData, id));
+        }
+
+        return items;
     }
 
     /**
@@ -251,19 +186,19 @@ class FlexList {
      * @param page
      * @private
      */
-    private async getcurrentSearchItems(query: string, page: number): Promise<ListItem[]> {
+    private async searchItems(query: string, page: number): Promise<ListItem[]> {
         // Search by remote values
         let itemObjects = await this.itemCallbacks.search(query, get(this.pagination).current, get(this.pagination).perPage);
 
         if (itemObjects === false) {
-            this.displayedMessage.set('Your search returned an error, please try again');
+            this.displayMessage('Your search returned an error, please try again');
             return [];
         }
 
         let items: ListItem[] = [];
 
         for (let itemData of itemObjects) {
-            items.push(new ListItem(itemData, itemData[this.idField], page));
+            items.push(new ListItem(itemData, itemData[this.idField]));
         }
 
         return items;
@@ -273,11 +208,8 @@ class FlexList {
      * Change the page from a page number (this includes search queries)
      *
      * @param page
-     * @param showSpinner
      */
-    public async changePage(page: number, showSpinner: boolean = true) {
-        this.displayedMessage.set(null);
-        
+    public async changePage(page: number) {
         // Update the page to be in the correct bounds
         if (get(this.pagination).max && page > get(this.pagination).max) {
             page = get(this.pagination).max;
@@ -295,12 +227,12 @@ class FlexList {
         }
 
         // Show spinner
-        if (showSpinner) {
-            this.showSpinner.set(true);
-        }
+        this.state.set('loading');
 
         // Get previous page
         let previousPage = get(this.pagination).current;
+
+        // Update pagination.current
         this.pagination.update((p) => {
             p.current = page;
             return p;
@@ -309,15 +241,14 @@ class FlexList {
         let pageItems: ListItem[];
 
         if (this.searcher && get(this.searcher.query)) {
-            pageItems = await this.getcurrentSearchItems(get(this.searcher.query), page);
-            this.currentSearchItems = pageItems;
+            pageItems = await this.searchItems(get(this.searcher.query), page);
         } else {
             pageItems = await this.getPageItems(page);
-            this.currentSearchItems = null;
         }
 
         // Return if there is an error getting items
         if (this.errorOccured) {
+            this.displayMessage('An error occurred...');
             return;
         }
 
@@ -334,32 +265,20 @@ class FlexList {
             return;
         }
 
-        // Order items
-        if (this.sortColumn !== null) {
-            pageItems = pageItems.sort((a, b) => {
-                return a.data[this.sortColumn].toString().localeCompare(b.data[this.sortColumn].toString());
-            });
-
-            if (this.sortDirection !== 'asc') {
-                pageItems.reverse();
-            }
-        }
-
-        if (showSpinner) {
-            this.showSpinner.set(false);
-        }
-
         if (pageItems.length === 0) {
             if (this.searcher && get(this.searcher.query)) {
-                this.displayedMessage.set(`No results found for <span class="badge bg-light ms-1">${get(this.searcher.query)}</span>`);
+                this.displayMessage(`No results found for <span class="badge bg-light ms-1">${get(this.searcher.query)}</span>`);
             } else {
-                this.displayedMessage.set(this.noItemsText);
+                this.displayMessage('No items found');
             }
+
+            this.items.set([]);
+
+            return;
         }
 
-        this.displayedItems.set(pageItems);
-
-        // this.renderer.scrollIntoView();
+        this.state.set('results');
+        this.items.set(pageItems);
 
         this.updatePagination();
 
@@ -376,7 +295,6 @@ class FlexList {
             return;
         }
 
-        this.showSpinner.set(false);
         this.searcher.query.set(null);
 
         await this.changePage(1);
@@ -384,7 +302,6 @@ class FlexList {
 
     public async search(query: string) {
         if (!this.searcher || get(this.searcher.query) === query) {
-            this.showSpinner.set(false);
             return;
         }
 
@@ -400,31 +317,14 @@ class FlexList {
             return;
         }
 
-        await this.changePage(get(this.pagination).current, false);
-
-        this.showSpinner.set(false);
-    }
-
-    public async bindSearch(value: string|null) {
-        this.showSpinner.set(true);
-
-        clearTimeout(this.searcher.searchTimer);
-        this.searcher.searchTimer = setTimeout(() => this.searcher && this.search(value), this.searcher?.searchDelay);
-    }
-
-    /**
-     * Deletes all remotes data and retrieves the current page
-     */
-    public async clearData() {
-        this.items = [];
-        this.pages = [];
         await this.changePage(get(this.pagination).current);
     }
 
-    private updateUrl() {
-        let url = this.url.toString()
+    public async bindSearch(value: string|null) {
+        this.state.set('loading');
 
-        window.history.pushState({ path: url }, '', url);
+        clearTimeout(this.searcher.searchTimer);
+        this.searcher.searchTimer = setTimeout(() => this.searcher && this.search(value), this.searcher?.searchDelay);
     }
 
     public previous() {
@@ -453,7 +353,7 @@ class FlexList {
 
         const { min, max, activePageRange, current } = get(this.pagination);
 
-        if (this.getCurrentItems().length === 0) {
+        if (get(this.items).length === 0) {
             showPagination = false;
         } else if (min && max && Math.abs(max - min) <= 5) {
             // If there are less than 5 pages
@@ -545,18 +445,13 @@ class FlexList {
     }
 
     private async init() {
-        // Get query parameters
-        this.url = new URL(window.location.href)
-
         // Add spinner
-        this.showSpinner.set(true);
+        this.state.set('loading');
 
         // Render init items
         this.changePage(get(this.pagination).current).then(async () => {
-            this.showSpinner.set(false);
-
             // If no items, change to the first page
-            if (this.getCurrentItems().length === 0) {
+            if (get(this.items).length === 0) {
                 await this.changePage(get(this.pagination).min);
             }
         });
