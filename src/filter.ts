@@ -1,7 +1,7 @@
 interface Filter {
     slug: string;
     name: string;
-    type: 'text'|'numberRange'|'boolean';
+    type: 'text'|'select'|'boolean';
     enabled?: boolean;
     selectedValue?: any;
     options?: any;

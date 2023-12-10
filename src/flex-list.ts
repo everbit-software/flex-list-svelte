@@ -27,6 +27,7 @@ export interface FetchCallbackOptions {
     limit: number;
     query?: string;
     filters: any[];
+    flex: FlexList;
 }
 
 export interface Pagination {
@@ -161,7 +162,6 @@ class FlexList {
                 // Boolean
                 filter.selectedValue = false;
             }
-            
         }
 
         this.filters.set(filters);
@@ -202,7 +202,8 @@ class FlexList {
         let options: FetchCallbackOptions = {
             page: page, 
             limit: get(this.pagination).perPage,
-            filters: get(this.filters).length === 0 ? undefined : get(this.filters)
+            filters: get(this.filters),
+            flex: this
         };
 
         if (hasQuery) {
@@ -491,7 +492,27 @@ class FlexList {
     }
 
     public useFilters() {
-        return this.filters && get(this.filters).length > 0;
+        return get(this.filters).length > 0;
+    }
+
+    /**
+     * Get a filter value that is enabled
+     */
+    public getFilterValue(slug: string) {
+        let filter = get(this.filters)
+            .filter((f) => f.slug === slug)
+            .at(0);
+
+        if (!filter || !filter.enabled) {
+            return undefined
+        }
+
+        // Type specific
+        if (filter.type === 'select' && !filter.selectedValue) {
+            filter.selectedValue = undefined;
+        }
+
+        return filter.selectedValue;
     }
 
     private async init() {
