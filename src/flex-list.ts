@@ -3,12 +3,12 @@ import { ListItem } from "./list-item";
 import type { Search } from "./search";
 
 export interface ListConfig {
-    search?: Search;
-
     idField: string;
-
+    search?: Search;
     perPage?: number
-    itemCallbacks: ItemCallbacks
+    itemCallbacks?: ItemCallbacks;
+    fetchCallback?: FetchCallback;
+    filters?: Filter[];
 }
 
 export interface ItemCallbacks {
@@ -18,11 +18,15 @@ export interface ItemCallbacks {
     // On search
     search?: (query: string, page: number, limit: number) => Promise<object[] | false>;
 
-    // Load one item
-    loadOne?: (id: string | number) => Promise<object | false>;
-
     // Get the last page number (for pagination)
     getLastPageNumber?: () => Promise<number | false>;
+}
+
+export interface FetchCallbackOptions {
+    page: number;
+    limit: number;
+    query?: string;
+    filters: any[];
 }
 
 export interface Pagination {
@@ -41,6 +45,9 @@ export interface Pagination {
     // Maximum page number to display
     max: number | null;
 
+    // Total item count
+    totalItems: number | null;
+
     // The number of pages to show either side of the current page
     activePageRange: number | null;
 
@@ -53,6 +60,8 @@ export interface Pagination {
     // Show end page button
     lastPageButtonVisible: boolean;
 }
+
+export type FetchCallback = (options: FetchCallbackOptions) => Promise<object[]|false>;
 
 export interface ListEvent {
     (options: object, listInstance: FlexList): void;
@@ -68,6 +77,8 @@ class FlexList {
 
     public searcher?: Search;
 
+    public filters = writable([] as Array<Filter>);
+
     /*
      * Available events
      *
@@ -80,7 +91,9 @@ class FlexList {
     /*
      * Callbacks used to get list data
      */
-    private itemCallbacks: ItemCallbacks = {};
+    private itemCallbacks?: ItemCallbacks;
+
+    private fetchCallback: FetchCallback;
 
 
     /*
@@ -111,6 +124,9 @@ class FlexList {
         // Maximum page number to display
         max: null,
 
+        // Total item count
+        totalItems: null,
+
         // The number of pages to show either side of the current page
         activePageRange: 1,
 
@@ -131,6 +147,25 @@ class FlexList {
         this.idField = config.idField;
         this.searcher = config.search;
 
+        // Filters
+        const filters = config.filters ?? [];
+
+        for (const filter of filters) {
+            filter.enabled = filter.selectedValue !== undefined;
+
+            // Defaults
+            if (filter.selectedValue !== undefined) {
+                // User selected
+                filter.selectedValue = filter.selectedValue ?? null;
+            } else if (filter.type === 'boolean') {
+                // Boolean
+                filter.selectedValue = false;
+            }
+            
+        }
+
+        this.filters.set(filters);
+
         // Pagination
         this.pagination.update((p) => {
             p.perPage = config.perPage ?? 10
@@ -138,6 +173,18 @@ class FlexList {
         });
 
         this.itemCallbacks = config.itemCallbacks;
+
+        if (config.fetchCallback !== undefined) {
+            this.fetchCallback = config.fetchCallback;
+        } else {
+            this.fetchCallback = async ({ page, limit, query }) => {
+                if (query === undefined) {
+                    return await this.itemCallbacks.load(page, limit);
+                } else {
+                    return await this.itemCallbacks.search(query, page, limit);
+                }
+            }
+        }
 
         this.init().then();
     }
@@ -150,10 +197,27 @@ class FlexList {
     private async getPageItems(page: number) {
         let itemsObjects: any;
 
-        itemsObjects = await this.itemCallbacks.load(page, get(this.pagination).perPage);
+        const hasQuery = this.searcher && get(this.searcher.query);
+
+        let options: FetchCallbackOptions = {
+            page: page, 
+            limit: get(this.pagination).perPage,
+            filters: get(this.filters).length === 0 ? undefined : get(this.filters)
+        };
+
+        if (hasQuery) {
+            options.query = get(this.searcher.query)
+        }
+
+        itemsObjects = await this.fetchCallback(options);
 
         if (itemsObjects === false) {
-            this.displayMessage('Data was unable to be retrieved, reload the page to try again.');
+            if (hasQuery) {
+                this.displayMessage('Your search returned an error, please try again');
+            } else {
+                this.displayMessage('Data was unable to be retrieved, reload the page to try again.');
+            }
+
             return;
         }
 
@@ -174,31 +238,6 @@ class FlexList {
             const id = itemData[this.idField];
 
             items.push(new ListItem(itemData, id));
-        }
-
-        return items;
-    }
-
-    /**
-     * Search using the remote search callback
-     *
-     * @param query
-     * @param page
-     * @private
-     */
-    private async searchItems(query: string, page: number): Promise<ListItem[]> {
-        // Search by remote values
-        let itemObjects = await this.itemCallbacks.search(query, get(this.pagination).current, get(this.pagination).perPage);
-
-        if (itemObjects === false) {
-            this.displayMessage('Your search returned an error, please try again');
-            return [];
-        }
-
-        let items: ListItem[] = [];
-
-        for (let itemData of itemObjects) {
-            items.push(new ListItem(itemData, itemData[this.idField]));
         }
 
         return items;
@@ -238,13 +277,7 @@ class FlexList {
             return p;
         });
 
-        let pageItems: ListItem[];
-
-        if (this.searcher && get(this.searcher.query)) {
-            pageItems = await this.searchItems(get(this.searcher.query), page);
-        } else {
-            pageItems = await this.getPageItems(page);
-        }
+        let pageItems = await this.getPageItems(page);
 
         // Return if there is an error getting items
         if (this.errorOccured) {
@@ -300,6 +333,10 @@ class FlexList {
         await this.changePage(1);
     }
 
+    public async filterChanged() {
+        await this.changePage(1);
+    }
+
     public async search(query: string) {
         if (!this.searcher || get(this.searcher.query) === query) {
             return;
@@ -327,6 +364,10 @@ class FlexList {
         this.searcher.searchTimer = setTimeout(() => this.searcher && this.search(value), this.searcher?.searchDelay);
     }
 
+    public first() {
+        this.changePage(get(this.pagination).min);
+    }
+
     public previous() {
         let newPage = get(this.pagination).current - 1;
 
@@ -346,6 +387,10 @@ class FlexList {
 
         this.changePage(newPage).then();
     };
+
+    public last() {
+        this.changePage(get(this.pagination).max ?? get(this.pagination).current);
+    }
 
     private updatePagination() {
         let inBetweenPages: number[] = [];
@@ -425,7 +470,7 @@ class FlexList {
 
     private async initPagination() {
         // Get the last page number
-        if (this.itemCallbacks.getLastPageNumber !== undefined) {
+        if (this.itemCallbacks && this.itemCallbacks.getLastPageNumber !== undefined) {
             const lastPage = await this.itemCallbacks.getLastPageNumber();
 
             if (lastPage !== false) {
@@ -437,11 +482,16 @@ class FlexList {
         }
     }
 
-    public setLastPage(lastPage: number|null) {
+    public updatePaginationPages(lastPage: number|null, totalItems: number|null = null) {
         this.pagination.update(p => {
             p.max = lastPage;
+            p.totalItems = totalItems ?? lastPage * p.perPage;
             return p;
         })
+    }
+
+    public useFilters() {
+        return this.filters && get(this.filters).length > 0;
     }
 
     private async init() {
@@ -457,6 +507,16 @@ class FlexList {
         });
 
         await this.initPagination();
+
+        // Filter watcher
+        this.filters.subscribe(() => {
+            // For some reason the changePage would be called twice on init...
+            if (get(this.state) === 'loading') {
+                return;
+            }
+
+            this.filterChanged();
+        })
 
         this.triggerEvent('initialised');
     }

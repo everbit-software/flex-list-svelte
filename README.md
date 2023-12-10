@@ -30,7 +30,7 @@ The library works by binding different buttons and inputs to functions in the `F
         },
     });
 
-    const { displayedItems, displayedMessage, showSpinner } = flexList;
+    const { items, displayedMessage, showSpinner } = flexList;
 </script>
 
 <div class="list-group list-group-flush">
@@ -43,7 +43,7 @@ The library works by binding different buttons and inputs to functions in the `F
                 {@html $displayedMessage}
             </div>
         {:else}
-            {#each $displayedItems as organisation}
+            {#each $items as organisation}
                 <a
                     class="list-group-item"
                     href="/organisation/{organisation.id}"
