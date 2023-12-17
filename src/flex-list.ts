@@ -393,6 +393,10 @@ class FlexList {
         this.changePage(get(this.pagination).max ?? get(this.pagination).current);
     }
 
+    public refreshPage() {
+        this.changePage(get(this.pagination).current);
+    }
+
     private updatePagination() {
         let inBetweenPages: number[] = [];
         let showPagination = true;
