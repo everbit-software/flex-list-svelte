@@ -1,66 +1,8 @@
 import { get, writable } from "svelte/store";
 import { ListItem } from "./list-item";
 import type { Search } from "./search";
-
-export interface ListConfig {
-    idField: string;
-    search?: Search;
-    perPage?: number
-    itemCallbacks?: ItemCallbacks;
-    fetchCallback?: FetchCallback;
-    filters?: Filter[];
-}
-
-export interface ItemCallbacks {
-    // On page load
-    load?: (page: number, limit: number) => Promise<object[] | false>;
-
-    // On search
-    search?: (query: string, page: number, limit: number) => Promise<object[] | false>;
-
-    // Get the last page number (for pagination)
-    getLastPageNumber?: () => Promise<number | false>;
-}
-
-export interface FetchCallbackOptions {
-    page: number;
-    limit: number;
-    query?: string;
-    filters: any[];
-    flex: FlexList;
-}
-
-export interface Pagination {
-    // Show pagination
-    visible: boolean;
-
-    // Items per page
-    perPage: number;
-
-    // The currently displayed page
-    current: number;
-
-    // Minimum page number to display
-    min: number;
-
-    // Maximum page number to display
-    max: number | null;
-
-    // Total item count
-    totalItems: number | null;
-
-    // The number of pages to show either side of the current page
-    activePageRange: number | null;
-
-    // The pages that can be clicked currently
-    inbetweenPages: number[];
-
-    // Show first page button
-    firstPageButtonVisible: boolean;
-
-    // Show end page button
-    lastPageButtonVisible: boolean;
-}
+import type { FetchCallbackOptions, ItemCallbacks, ListConfig, Pagination, Filter } from "./interfaces/config";
+import { Options } from "./options";
 
 export type FetchCallback = (options: FetchCallbackOptions) => Promise<object[]|false>;
 
@@ -76,15 +18,19 @@ class FlexList {
     // How the row is identified
     private readonly idField: string;
 
+    // Enable searching and config
     public searcher?: Search;
 
     public filters = writable([] as Array<Filter>);
+
+    public options?: Options;
 
     /*
      * Available events
      *
      * itemsRendered    After an item has been rendered
      * pageChanged      After a page change
+     * search           After a search
      * initialised      After the list is initialised
      */
     private events: object = [];
@@ -172,6 +118,14 @@ class FlexList {
             return p;
         });
 
+        this.state.subscribe((state) => {
+            this.pagination.update((p) => {
+                p.visible = state === 'results';
+                return p;
+            });
+        });
+
+        // Callbacks
         this.itemCallbacks = config.itemCallbacks;
 
         if (config.fetchCallback !== undefined) {
@@ -186,6 +140,22 @@ class FlexList {
             }
         }
 
+        // Options
+        let options = [];
+
+        if (config.displayedOptions?.multiView !== undefined) {
+            options.push({
+                id: "views",
+                value: config.displayedOptions.multiView,
+            }, {
+                id: "view",
+                value: config.displayedOptions.multiView.at(0),
+            })
+        }
+
+        this.options = new Options(options)
+
+        // Initialisation
         this.init().then();
     }
 
