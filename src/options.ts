@@ -10,21 +10,29 @@ export class Options {
     private options: Writable<Option[]> = writable([]);
   
     constructor(initialOptions: Option[]) {
-      this.options.set(initialOptions);
+        this.updateAll(initialOptions);
+        return this;
+    }
+
+    public updateAll(options: Option[]) {
+        this.options.set(options);
     }
   
-    get(id: string): any {
+    public get(id: string): any {
         return get(this.options).find(option => option.id === id)?.value;
     }
   
-    set(id: string, value: any): void {
+    public set(id: string, value: any): void {
         this.options.update((options) => {
             const index = options.findIndex(option => option.id === id);
     
             if (index !== -1) {
                 options[index].value = value;
             } else {
-                console.error(`Option with id ${id} not found.`);
+                options.push({
+                    id: id,
+                    value: value
+                })
             }
 
             return options;
@@ -38,8 +46,10 @@ export class Options {
      *
      * @returns 
      */
-    subscribe(id: string): Readable<any> {
-        let store = readable(this.get(id), (set) => {
+    public readable(id: string): Readable<any> {
+        const initialValue = this.get(id);
+        
+        let store = readable(initialValue, (set) => {
             this.options.subscribe((options) => {
                 const currentValue = get(store);
 
@@ -55,8 +65,42 @@ export class Options {
 
         return store
     }
+
+    /**
+     * Subscribe to an option change
+     *
+     * @param id 
+     *
+     * @returns 
+     */
+    public writable(id: string, defaultValue?: any): Writable<any> {
+        let store = writable(this.get(id) ?? defaultValue ?? null);
+        let changingValue = false;
+
+        this.options.subscribe((options) => {
+            const currentValue = get(store);
+
+            for (const option of options) {
+                if (option.id !== id || currentValue === option.value) {
+                    continue
+                }
+
+                changingValue = true;
+                store.set(option.value);
+                changingValue = false;
+            }
+        });
+
+        store.subscribe((value) => {
+            if (!changingValue) {
+                this.set(id, value);
+            }
+        });
+
+        return store
+    }
   
-    all(): Option[] {
+    public all(): Option[] {
         return get(this.options);
     }
 }

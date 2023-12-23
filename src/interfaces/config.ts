@@ -2,9 +2,17 @@ import FlexList, { FetchCallback } from "../flex-list";
 import { Option } from "../options";
 import { Search } from "../search";
 
+export type SaveOptionsCallback = (options: any) => void
+
 export interface DisplayedOptions {
     // Allows the user to change the view. Accepts an array of view IDs
     multiView?: string[];
+
+    // Save settings
+    showSaveButton?: boolean
+
+    // Reset button
+    showResetButton?: boolean
 }
 
 export interface ListConfig {
@@ -15,6 +23,7 @@ export interface ListConfig {
     fetchCallback?: FetchCallback;
     filters?: Filter[];
     displayedOptions?: DisplayedOptions;
+    saveOptionsCallback?: SaveOptionsCallback;
 }
 
 export interface ItemCallbacks {

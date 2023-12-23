@@ -1,14 +1,12 @@
 import { get, writable } from "svelte/store";
 import { ListItem } from "./list-item";
 import type { Search } from "./search";
-import type { FetchCallbackOptions, ItemCallbacks, ListConfig, Pagination, Filter } from "./interfaces/config";
+import type { FetchCallbackOptions, ItemCallbacks, ListConfig, Pagination, Filter, DisplayedOptions } from "./interfaces/config";
 import { Options } from "./options";
 
 export type FetchCallback = (options: FetchCallbackOptions) => Promise<object[]|false>;
 
-export interface ListEvent {
-    (options: object, listInstance: FlexList): void;
-}
+export type ListEvent = (data: any, listInstance: FlexList) => Promise<void>|void;
 
 class FlexList {
     /*
@@ -23,7 +21,9 @@ class FlexList {
 
     public filters = writable([] as Array<Filter>);
 
-    public options?: Options;
+    public options: Options;
+
+    public displayedOptions: DisplayedOptions;
 
     /*
      * Available events
@@ -141,19 +141,9 @@ class FlexList {
         }
 
         // Options
-        let options = [];
-
-        if (config.displayedOptions?.multiView !== undefined) {
-            options.push({
-                id: "views",
-                value: config.displayedOptions.multiView,
-            }, {
-                id: "view",
-                value: config.displayedOptions.multiView.at(0),
-            })
-        }
-
-        this.options = new Options(options)
+        this.displayedOptions = config.displayedOptions ?? {};
+        this.options = new Options([]);
+        this.addDefaultOptions();
 
         // Initialisation
         this.init().then();
@@ -333,6 +323,54 @@ class FlexList {
 
         clearTimeout(this.searcher.searchTimer);
         this.searcher.searchTimer = setTimeout(() => this.searcher && this.search(value), this.searcher?.searchDelay);
+    }
+
+    public async addDefaultOptions() {
+        let options = [];
+
+        if (this.displayedOptions?.multiView && this.displayedOptions?.multiView.length > 0) {
+            options.push({
+                id: 'views',
+                value: this.displayedOptions.multiView,
+            }, {
+                id: 'view',
+                value: this.displayedOptions.multiView.at(0),
+            })
+        }
+
+        options.push({
+            id: 'rearrangeTableColumns', 
+            value: false
+        })
+
+        options.push({
+            id: 'columnOrder', 
+            value: null
+        })
+
+        this.options.updateAll(options);
+    }
+
+    public async saveOptions() {
+        const options = {};
+        
+        for (const o of this.options.all()) {
+            if (['rearrangeTableColumns'].includes(o.id)) {
+                continue;
+            }
+
+            options[o.id] = o.value
+        }
+
+        this.triggerEvent('saveOptions', {
+            options: options
+        });
+    }
+
+    public async resetOptionDefaults() {
+        this.addDefaultOptions();
+
+        this.triggerEvent('resetOptionDefaults', null);
     }
 
     public first() {
