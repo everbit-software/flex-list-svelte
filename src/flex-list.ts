@@ -1,7 +1,7 @@
 import { get, writable } from "svelte/store";
 import { ListItem } from "./list-item";
 import type { Search } from "./search";
-import type { FetchCallbackOptions, ItemCallbacks, ListConfig, Pagination, Filter, DisplayedOptions } from "./interfaces/config";
+import type { FetchCallbackOptions, ItemCallbacks, ListConfig, Pagination, Filter, DisplayedOptions, UpdateFilter } from "./interfaces/config";
 import { Options } from "./options";
 
 export type FetchCallback = (options: FetchCallbackOptions) => Promise<object[]|false>;
@@ -525,6 +525,58 @@ class FlexList {
         }
 
         return filter.selectedValue;
+    }
+
+    public disableAllFilters() {
+        this.filters.update(filters => {
+            for (const f of filters) {
+                f.enabled = false;
+            }
+
+            return filters;
+        });
+    }
+
+    public setFilterValue(slug: string, value?: any, isEnabled = true) {
+        this.disableAllFilters();
+
+        this.filters.update(filters => {
+            for (const f of filters) {
+                if (f.slug !== slug) {
+                    continue;
+                }
+
+                f.enabled = isEnabled;
+                f.selectedValue = value;
+                break;
+            }
+
+            return filters;
+        });
+    }
+
+    public updateFilters(newValues: UpdateFilter[], clearFirst = true) {
+        this.filters.update(filters => {
+            if (clearFirst) {
+                for (const f of filters) {
+                    f.enabled = false;
+                }
+            }
+
+            for (const { slug, value, enabled } of newValues) {
+                for (const f of filters) {
+                    if (f.slug !== slug) {
+                        continue;
+                    }
+    
+                    f.enabled = enabled ?? true;
+                    f.selectedValue = value;
+                    break;
+                }
+            }
+
+            return filters;
+        });
     }
 
     private async init() {

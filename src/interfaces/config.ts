@@ -58,6 +58,12 @@ export interface Filter {
     options?: any;
 }
 
+export interface UpdateFilter {
+    slug: string;
+    value: any;
+    enabled?: boolean;
+}
+
 export interface Pagination {
     // Show pagination
     visible: boolean;
