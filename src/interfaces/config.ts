@@ -22,6 +22,8 @@ export interface ListConfig {
     itemCallbacks?: ItemCallbacks;
     fetchCallback?: FetchCallback;
     filters?: Filter[];
+    sortingEnabled?: boolean;
+    defaultSort?: Sort;
     displayedOptions?: DisplayedOptions;
     saveOptionsCallback?: SaveOptionsCallback;
 }
@@ -42,6 +44,7 @@ export interface FetchCallbackOptions {
     limit: number;
     query?: string;
     filters: any[];
+    sort: Sort|null;
     flex: FlexList;
 }
 
@@ -56,6 +59,11 @@ export interface Filter {
     enabled?: boolean;
     selectedValue?: any;
     options?: any;
+}
+
+export interface Sort {
+    column: string;
+    direction?: 'asc'|'desc';
 }
 
 export interface UpdateFilter {

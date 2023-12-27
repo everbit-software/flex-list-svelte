@@ -1,7 +1,7 @@
 import { get, writable } from "svelte/store";
 import { ListItem } from "./list-item";
 import type { Search } from "./search";
-import type { FetchCallbackOptions, ItemCallbacks, ListConfig, Pagination, Filter, DisplayedOptions, UpdateFilter } from "./interfaces/config";
+import type { FetchCallbackOptions, ItemCallbacks, ListConfig, Pagination, Filter, DisplayedOptions, UpdateFilter, Sort } from "./interfaces/config";
 import { Options } from "./options";
 
 export type FetchCallback = (options: FetchCallbackOptions) => Promise<object[]|false>;
@@ -20,6 +20,9 @@ class FlexList {
     public searcher?: Search;
 
     public filters = writable([] as Array<Filter>);
+
+    public sortingEnabled = false;
+    public sort = writable(null as Sort|null);
 
     public options: Options;
 
@@ -112,6 +115,10 @@ class FlexList {
 
         this.filters.set(filters);
 
+        // Sorting
+        this.sortingEnabled = config.sortingEnabled ?? false;
+        this.sort.set(config.defaultSort ?? null);
+
         // Pagination
         this.pagination.update((p) => {
             p.perPage = config.perPage ?? 10
@@ -163,6 +170,7 @@ class FlexList {
             page: page, 
             limit: get(this.pagination).perPage,
             filters: get(this.filters),
+            sort: get(this.sort),
             flex: this
         };
 
@@ -295,6 +303,10 @@ class FlexList {
     }
 
     public async filterChanged() {
+        await this.changePage(1);
+    }
+
+    public async sortChanged() {
         await this.changePage(1);
     }
 
@@ -601,6 +613,16 @@ class FlexList {
             }
 
             this.filterChanged();
+        })
+
+        // Filter watcher
+        this.sort.subscribe(() => {
+            // For some reason the changePage would be called twice on init...
+            if (get(this.state) === 'loading') {
+                return;
+            }
+
+            this.sortChanged();
         })
 
         this.triggerEvent('initialised');

@@ -1,13 +1,13 @@
 export class ListItem {
-    public data: object;
+    public data: any;
     public id: string|number;
 
-    constructor(data: object, id: string|number) {
+    constructor(data: any, id: string|number) {
         this.data = data;
         this.id = id;
     }
 
-    public update(data: object, id?: string|number) {
+    public update(data: any, id?: string|number) {
         this.data = data;
 
         if (id !== undefined) {
